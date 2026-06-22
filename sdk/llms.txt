@@ -1,0 +1,338 @@
+# aix-sheet SDK — AI / LLM Usage Guide
+
+This file is the **canonical reference** for AI agents (Claude, GPT, etc.)
+to operate the aix-sheet SDK. Read this entire file before writing code.
+
+---
+
+## TL;DR
+
+You write JavaScript code using the `Sheet` and `Workbook` classes to
+manipulate spreadsheets saved as `.aix.json` files (plain JSON).
+Final output can be converted to `.xlsx`.
+
+- `Sheet` — a single worksheet (grid of cells).
+- `Workbook` — a container for multiple Sheets, like an Excel file with tabs.
+  Cross-sheet formula references use `SheetName!A1` or `'Sheet Name'!A1`.
+
+```js
+const { Sheet } = require('./sdk/sheet.js');
+
+const s = new Sheet('Sales');
+s.write('A1', '商品名').write('B1', '売上');
+s.write('A2:A4', ['りんご', 'みかん', 'ぶどう']);
+s.write('B2:B4', [100, 200, 150]);
+s.write('B5', '=SUM(B2:B4)');
+s.style('A1:B1', { bold: true, bgColor: '#e8f4ee' });
+s.save('sales.aix.json');
+```
+
+---
+
+## Cell Reference Conventions (IMPORTANT)
+
+- **Always use A1 notation as a string**: `"A1"`, `"B12"`, `"AA3"`
+- **Ranges**: `"A1:C5"`
+- **NEVER use** numeric `{row, col}` objects — they are not accepted.
+- Rows are 1-based, columns are letter labels (A=1st, B=2nd, ..., Z, AA, AB...).
+
+---
+
+## Complete API Reference
+
+### Construction
+
+```js
+new Sheet(name?)              // create empty sheet (default name: "Sheet1")
+Sheet.fromJSON(jsonOrString)  // parse a .aix.json (single-sheet)
+Sheet.load(path)              // load from file (Node only) — async
+Sheet.fromCSV(text, name?)    // build from CSV text
+
+new Workbook()                                     // multi-sheet container
+Workbook.fromJSON(jsonOrString)                    // parse workbook OR single sheet
+Workbook.load(path)                                // load (Node only) — async
+workbook.addSheet(name?)                           // → Sheet (new tab)
+workbook.sheet(nameOrIndex)                        // → Sheet | null
+workbook.removeSheet(nameOrIndex)
+workbook.renameSheet(oldName, newName)
+workbook.active                                    // current Sheet
+workbook.active = "Summary"                        // set by name or index
+await workbook.save("book.aix.json")
+await workbook.toXLSX()                            // requires SheetJS
+```
+
+### Cross-sheet references
+
+Inside a formula on any sheet, you can reference cells on other sheets:
+
+```js
+sheetA.write('B1', '=SUM(Sheet2!A1:A10)')          // unquoted
+sheetA.write('B2', "=AVERAGE('My Sheet'!A1:A10)")  // quoted (spaces)
+```
+
+This works only when the Sheet belongs to a Workbook.
+A free-standing Sheet (no workbook) returns `#REF!` for cross-sheet references.
+
+### Writing
+
+```js
+sheet.write("A1", 42)                       // single value (number)
+sheet.write("A1", "Hello")                  // single value (string)
+sheet.write("A1", "=SUM(B1:B10)")           // formula (must start with "=")
+sheet.write("A1:A5", [1,2,3,4,5])           // 1D array into column
+sheet.write("A1:E1", [1,2,3,4,5])           // 1D array into row
+sheet.write("A1:C2", [[1,2,3],[4,5,6]])     // 2D array
+
+// Pass null/undefined/"" to clear a cell:
+sheet.write("A1", null)
+```
+
+**Shape rules**: For range writes, the array shape MUST match the range exactly.
+A 1D array works for single-row or single-column ranges only.
+
+### Reading
+
+```js
+sheet.get("A1")        // → { v: 42, s: { bold: true } } — raw record
+sheet.value("A1")      // → 42                            — computed value
+sheet.value("B5")      // → 450                           — evaluates formula
+sheet.read("A1:C3")    // → [[...], [...], [...]]         — 2D array of values
+```
+
+### Styling
+
+```js
+sheet.style("A1", { bold: true })
+sheet.style("A1:D1", {
+  bold: true,
+  italic: false,
+  underline: false,
+  color: "#ffffff",
+  bgColor: "#217346",
+  align: "center",           // "left" | "center" | "right" ONLY
+  fontSize: 14,              // px
+  fontFamily: "Arial",
+  border: true               // see Borders below
+})
+```
+
+Styles are **merged** with existing styles (not replaced).
+
+### Borders
+
+```js
+sheet.style("A1:D5", { border: true })          // all 4 sides, thin black
+sheet.style("A1:D5", { border: 'all' })         // same
+sheet.style("A1:D5", { border: false })         // remove borders
+
+// Per-side: top|right|bottom|left
+sheet.style("A1:D1", { border: { bottom: true } })
+sheet.style("A1:D5", { border: { top: 'thick', bottom: { style: 'medium', color: '#888' } } })
+
+// Shorthand for all 4 sides:
+sheet.style("A1:D5", { border: { all: { style: 'dashed' } } })
+```
+
+- Side values accept: `true` (= thin black), `false` (= remove that side), a
+  string `'thin'|'medium'|'thick'|'dotted'|'dashed'|'double'`, or
+  `{ style, color }`.
+- xlsx export preserves borders; viewer renders them as CSS borders.
+
+### Conditional formatting (dynamic styles)
+
+Apply a style only when an Excel-style formula evaluates truthy. The viewer
+re-evaluates on every cell change; xlsx export emits real `<conditionalFormatting>`
+so Excel does the same on open.
+
+```js
+// Gantt-style bar: paint the cell when its column index is between $D{row} and $E{row}
+sheet.cf("G3:Z3", {
+  formula: "=AND(COLUMN()-7>=$D3, COLUMN()-7<=$E3)",
+  style:   { bgColor: "#4472c4", color: "#ffffff", bold: true }
+});
+
+// Highlight negative numbers in red
+sheet.cf("B2:B100", { formula: "=B2<0", style: { color: "#cc0000", bold: true } });
+
+sheet.clearCF("G3:Z3");   // remove that rule
+sheet.clearCF();          // remove all CFs on this sheet
+```
+
+Formula rules:
+- Relative refs (`D3`) shift per cell from the range top-left.
+- Absolute refs (`$D$3`, `$D3`, `D$3`) lock the column and/or row.
+- `ROW()` / `COLUMN()` return the 1-based row/column of the current cell.
+- Comparison ops use Excel syntax: `=` (equal), `<>` (not equal).
+- Supported functions in the in-viewer evaluator: `AND`, `OR`, `NOT`, `IF`,
+  `SUM`, `AVERAGE`, `MAX`, `MIN`, `COUNT`, `COUNTA`. Anything beyond that may
+  still work in Excel after xlsx export (since Excel re-evaluates), but
+  the viewer's preview won't paint it.
+- `style` accepts a subset of `CellStyle`: `bgColor`, `color`, `bold`, `italic`.
+
+### Merging cells
+
+```js
+sheet.merge("A1:D1")           // merge header row
+sheet.unmerge("A1:D1")         // remove that merge (exact match)
+sheet.unmerge("B1")            // remove whichever merge contains B1
+sheet.mergeAt(0, 0)            // → { r1,c1,r2,c2 } | null
+sheet.merges                   // → MergeRange[]
+```
+
+- Only the **top-left cell** keeps its value; other cells in the range are
+  "covered" (hidden in the viewer, omitted from xlsx).
+- Merging an overlapping range throws `MERGE_OVERLAP`.
+- `insertRow / deleteRow / insertCol / deleteCol` remap merges automatically.
+
+### Images
+
+```js
+const id = sheet.addImage("B2", "data:image/png;base64,iVBORw0KGgo...", {
+  size:   { width: 200, height: 150 },   // px (default 200x150)
+  offset: { x: 0, y: 0 }                  // px within anchor cell
+});
+sheet.getImage(id)                        // → { id, src, anchor, offset, size } | null
+sheet.moveImage(id, "D5", { x: 10, y: 0 })
+sheet.resizeImage(id, { width: 300, height: 200 })
+sheet.removeImage(id)
+sheet.images                              // → ImageRecord[]
+```
+
+- `source` must be a **data URL** (`data:image/png;base64,...` or `image/jpeg`)
+  to be embeddable in xlsx export. http(s) URLs render in the viewer but
+  are skipped during xlsx export.
+- Excel-compatible output uses cell-anchored positioning (oneCellAnchor).
+- `xlsx` package and `jszip` must be installed for `toXLSX()` with images.
+
+### Structure changes
+
+```js
+sheet.insertRow(3)              // insert one blank row above row 3
+sheet.insertRow(3, 5)           // insert 5 blank rows
+sheet.deleteRow(3)              // delete row 3
+sheet.deleteRow(3, 2)           // delete 2 rows starting at row 3
+sheet.insertCol("C")            // insert one blank column at C
+sheet.insertCol("C", 3)
+sheet.deleteCol("C")
+sheet.deleteCol("C", 2)
+
+sheet.colWidth("A", 150)        // column width in px
+sheet.rowHeight(1, 30)          // row height in px (1-based)
+
+sheet.clear("A1:C5")            // clear values & styles in range
+```
+
+### Inspection (use these to verify your work)
+
+```js
+sheet.usedRange()       // → { rows: 10, cols: 4 }
+sheet.toMarkdown()      // → markdown table of computed values
+sheet.toMarkdown({ maxRows: 100 })
+sheet.toJSON()          // → AixSheetData object
+sheet.toCSV()           // → CSV string
+```
+
+### Output
+
+```js
+sheet.save("out.aix.json")   // Node: write JSON file
+sheet.toXLSX()               // → ArrayBuffer (browser) / Buffer (Node) — requires SheetJS
+```
+
+### Chaining
+
+All mutators return `this`, so chain freely:
+
+```js
+sheet.write("A1", "Title")
+     .style("A1", { bold: true, fontSize: 16 })
+     .write("A2:A5", [1,2,3,4])
+     .write("A6", "=SUM(A2:A5)");
+```
+
+---
+
+## Supported Formulas
+
+The built-in evaluator (used by `.value()` and `.toMarkdown()`) supports:
+
+- **Aggregates**: `SUM`, `AVERAGE`, `MAX`, `MIN`, `COUNT`, `COUNTA`
+- **Logic**: `IF(cond, true, false)`
+- **Math operators**: `+`, `-`, `*`, `/`, `%`, `()`, `**`
+- **Cell references**: `A1`, ranges `A1:B5`
+
+For XLSX export, **any Excel formula string is preserved** — Excel itself
+will evaluate it on open. Only the in-memory evaluator above is limited.
+
+---
+
+## File Format: `.aix.json`
+
+The on-disk format is plain JSON:
+
+```json
+{
+  "version": "1.0",
+  "type": "aix-sheet",
+  "name": "Sheet1",
+  "cells": {
+    "A1": { "v": "商品名", "s": { "bold": true } },
+    "B1": { "v": "売上",  "s": { "bold": true } },
+    "A2": { "v": "りんご" },
+    "B2": { "v": 100 },
+    "B5": { "f": "=SUM(B2:B4)" }
+  },
+  "cols": { "A": 120 },
+  "rows": { "1": 24 }
+}
+```
+
+- `cells[ref].v` — literal value
+- `cells[ref].f` — formula string (with leading `=`)
+- `cells[ref].s` — style object
+- Empty cells are omitted from `cells` entirely.
+
+You **may edit this JSON directly** as text if it's faster than calling the API.
+The `Sheet.fromJSON` loader will accept it as long as `type === "aix-sheet"`.
+
+---
+
+## Errors You May Encounter
+
+All errors include a code prefix. Read the message — it tells you the fix.
+
+| Code | Cause | Fix |
+|---|---|---|
+| `INVALID_REF` | Bad cell reference | Use A1 notation: `"A1"` not `[0,0]` |
+| `INVALID_STYLE_KEY` | Unknown style property | Use only: bold, italic, underline, color, bgColor, align, fontSize, fontFamily |
+| `INVALID_ALIGN` | Bad align value | Use only `"left"`, `"center"`, `"right"` |
+| `SHAPE_MISMATCH` | Array shape ≠ range size | Array dimensions must match exactly |
+| `INVALID_FORMAT` | JSON missing `type: "aix-sheet"` | Ensure file was saved by this SDK |
+| `XLSX_MISSING` | SheetJS not loaded | Install/CDN-load SheetJS before `toXLSX()` |
+| `NODE_ONLY` | Filesystem op in browser | Use `toJSON()` then handle the data yourself |
+
+---
+
+## Recommended Workflow for AI Agents
+
+1. **Load or create**: `Sheet.load(path)` or `new Sheet()`.
+2. **Inspect first**: call `sheet.toMarkdown()` to see current state.
+3. **Mutate** using `write`, `style`, `insertRow`, etc. — prefer **batch range writes** over many single-cell writes for efficiency.
+4. **Verify**: call `sheet.value(...)` or `sheet.toMarkdown()` to confirm.
+5. **Save**: `sheet.save(path)` or `sheet.toXLSX()` for the final deliverable.
+
+### Anti-patterns to AVOID
+
+❌ `sheet.write({row: 0, col: 1}, "x")` — numeric coords are not supported
+❌ `sheet.write("A1", [[1,2,3]])` — shape mismatch (range is 1×1)
+❌ `sheet.style("A1", { fontWeight: "bold" })` — use `bold: true`, not CSS names
+❌ `sheet.style("A1", { textAlign: "left" })` — use `align: "left"`
+❌ `sheet.write("A1", { value: 42 })` — pass the value directly, not wrapped
+❌ Calling `JSON.parse(sheet.toJSON())` — `toJSON()` already returns an object
+
+### Patterns that work well
+
+✅ Batch column writes: `sheet.write("B2:B100", arrayOf99Values)`
+✅ Header styling: `sheet.style("A1:Z1", { bold: true, bgColor: "#eee" })`
+✅ Formula bars: `sheet.write("B101", "=SUM(B2:B100)")`
+✅ Verify by reading: `console.log(sheet.toMarkdown())` after changes

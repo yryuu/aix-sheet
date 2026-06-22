@@ -1,0 +1,69 @@
+{
+  "name": "aix-sheet",
+  "version": "0.2.0",
+  "description": "AI-friendly spreadsheet SDK + embeddable viewer UI (vanilla / React).",
+  "type": "module",
+  "main": "./sdk/sheet.js",
+  "module": "./sdk/sheet.js",
+  "types": "./sdk/sheet.d.ts",
+  "exports": {
+    ".": {
+      "types": "./sdk/sheet.d.ts",
+      "import": "./sdk/sheet.js",
+      "default": "./sdk/sheet.js"
+    },
+    "./viewer": {
+      "types": "./viewer/core.d.ts",
+      "import": "./viewer/core.js",
+      "default": "./viewer/core.js"
+    },
+    "./viewer/styles.css": "./viewer/styles.css",
+    "./react": {
+      "types": "./viewer/react.d.ts",
+      "import": "./viewer/react.jsx",
+      "default": "./viewer/react.jsx"
+    },
+    "./llms.txt": "./sdk/llms.txt"
+  },
+  "files": [
+    "sdk/",
+    "viewer/",
+    "LICENSE",
+    "README.md"
+  ],
+  "keywords": [
+    "spreadsheet",
+    "excel",
+    "xlsx",
+    "ai",
+    "llm",
+    "react-component"
+  ],
+  "scripts": {
+    "example:basic": "node examples/basic.js",
+    "example:formulas": "node examples/formulas.js",
+    "serve": "python3 -m http.server 8080"
+  },
+  "peerDependencies": {
+    "react": ">=17 <20"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "optionalDependencies": {
+    "jszip": "^3.10.1",
+    "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yryuu/aix-sheet.git"
+  },
+  "homepage": "https://github.com/yryuu/aix-sheet#readme",
+  "bugs": {
+    "url": "https://github.com/yryuu/aix-sheet/issues"
+  }
+}

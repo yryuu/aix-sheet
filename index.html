@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>aix-sheet — Demo</title>
+<link rel="stylesheet" href="./viewer/styles.css">
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body { display: flex; flex-direction: column; font-family: 'Segoe UI', Meiryo, sans-serif; }
+  #app { flex: 1; min-height: 0; }
+  .demo-bar {
+    background: #1e1e1e; color: #ddd; padding: 6px 12px; font-size: 12px;
+    display: flex; gap: 12px; align-items: center;
+  }
+  .demo-bar a { color: #6cf; text-decoration: none; }
+  .demo-bar code { background: #333; padding: 1px 6px; border-radius: 3px; }
+</style>
+</head>
+<body>
+  <div class="demo-bar">
+    <strong>aix-sheet demo</strong>
+    <span>UI部品: <code>import { SheetView } from 'aix-sheet/viewer'</code></span>
+    <span>SDK: <code>import { Sheet } from 'aix-sheet'</code></span>
+    <span style="margin-left:auto"><a href="./examples/" >examples/</a> · <a href="./sdk/llms.txt">llms.txt</a></span>
+  </div>
+
+  <div id="app"></div>
+
+  <script type="module">
+    import { Workbook } from './sdk/sheet.js';
+    import { SheetView } from './viewer/core.js';
+
+    const wb = new Workbook();
+
+    const sales = wb.addSheet('Sales');
+    sales.write('A1:C1', ['商品', '価格', '在庫']);
+    sales.style('A1:C1', { bold: true, bgColor: '#217346', color: '#ffffff', align: 'center' });
+    sales.write('A2:A4', ['りんご', 'みかん', 'ぶどう']);
+    sales.write('B2:B4', [120, 80, 350]);
+    sales.write('C2:C4', [50, 100, 20]);
+    sales.write('A5', '合計');
+    sales.write('B5', '=SUM(B2:B4)');
+    sales.write('C5', '=SUM(C2:C4)');
+    sales.style('A5:C5', { bold: true, bgColor: '#e8f4ee' });
+
+    // Merge + border demo
+    sales.style('A1:C1', { border: { bottom: 'medium' } });
+    sales.style('A5:C5', { border: { top: 'medium' } });
+    sales.write('A7', '商品分析レポート');
+    sales.merge('A7:C7');
+    sales.style('A7', { bold: true, fontSize: 16, align: 'center', bgColor: '#fff2cc', border: true });
+
+    const summary = wb.addSheet('Summary');
+    summary.write('A1', '指標'); summary.write('B1', '値');
+    summary.style('A1:B1', { bold: true });
+    summary.write('A2', '商品数');    summary.write('B2', '=COUNTA(Sales!A2:A4)');
+    summary.write('A3', '価格合計');  summary.write('B3', '=SUM(Sales!B2:B4)');
+    summary.write('A4', '在庫合計');  summary.write('B4', '=SUM(Sales!C2:C4)');
+    summary.write('A5', '平均価格');  summary.write('B5', '=AVERAGE(Sales!B2:B4)');
+
+    // Sample image
+    const pngDot = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
+    sales.addImage('E2', pngDot, { size: { width: 180, height: 120 } });
+
+    // ---------- Project Config (project-wide dates live here) ----------
+    // Edit Config!B2 to shift the whole Gantt header (week columns are formula-chained).
+    const cfg = wb.addSheet('Config');
+    cfg.colWidth('A', 140); cfg.colWidth('B', 120);
+    cfg.write('A1', '項目'); cfg.write('B1', '値');
+    cfg.style('A1:B1', { bold: true, bgColor: '#44546a', color: '#ffffff', align: 'center', border: true });
+    cfg.write('A2', 'プロジェクト開始'); cfg.write('B2', new Date(2026, 5, 1));  // 2026-06-01 (Mon)
+    cfg.write('A3', 'プロジェクト終了'); cfg.write('B3', new Date(2026, 7, 9));
+    cfg.write('A4', '期間(週)'); cfg.write('B4', '=(B3-B2+1)/7');
+    cfg.style('A2:A4', { bold: true });
+    cfg.style('B2:B3', { align: 'center', border: true, numFmt: 'yyyy/m/d' });
+    cfg.style('B4', { align: 'center', border: true });
+
+    // ---------- WBS + weekly Gantt (1 cell = 1 week; bars via CF) ----------
+    const gantt = wb.addSheet('Gantt');
+
+    //  Column layout:
+    //    A = WBS, B = タスク, C = 担当, D = 開始(Date), E = 終了(Date),
+    //    F = 日数(=E-D+1), G.. = weekly columns (1 per week; cell value = that week's Monday Date)
+    // Chain-style: each task starts the day after the previous one ends.
+    // Edit F{row} (期間) → following tasks shift. Edit Config!B2 → all shift.
+    const tasks = [
+      { wbs: '1',   name: '要件定義',     owner: '田中', duration: 4,  color: '#4472c4' },
+      { wbs: '1.1', name: 'ヒアリング',   owner: '田中', duration: 2,  color: '#5b9bd5' },
+      { wbs: '1.2', name: '要件まとめ',   owner: '佐藤', duration: 2,  color: '#5b9bd5' },
+      { wbs: '2',   name: '設計',         owner: '佐藤', duration: 6,  color: '#ed7d31' },
+      { wbs: '2.1', name: '画面設計',     owner: '鈴木', duration: 3,  color: '#f4a460' },
+      { wbs: '2.2', name: 'DB設計',       owner: '佐藤', duration: 3,  color: '#f4a460' },
+      { wbs: '3',   name: '実装',         owner: '鈴木', duration: 10, color: '#70ad47' },
+      { wbs: '4',   name: 'テスト',       owner: '高橋', duration: 5,  color: '#ffc000' },
+      { wbs: '5',   name: 'リリース',     owner: '田中', duration: 2,  color: '#c00000' },
+    ];
+
+    const PROJECT_START = new Date(2026, 5, 1);
+    // Provision enough week columns up front (Excel can't grow the grid on B3 change).
+    // 30 weeks ≈ 7 months — adjust if your projects routinely run longer.
+    const TOTAL_WEEKS = 30;
+    const FIRST_DATE_COL = 6; // G (0-based)
+
+    function colLetter(idx) {
+      let s = '';
+      idx++;
+      while (idx > 0) { idx--; s = String.fromCharCode(65 + (idx % 26)) + s; idx = Math.floor(idx / 26); }
+      return s;
+    }
+    const lastWeekCol = colLetter(FIRST_DATE_COL + TOTAL_WEEKS - 1);
+
+    // --- Column widths ---
+    gantt.colWidth('A', 50);
+    gantt.colWidth('B', 140);
+    gantt.colWidth('C', 60);
+    gantt.colWidth('D', 90);
+    gantt.colWidth('E', 90);
+    gantt.colWidth('F', 50);
+    for (let i = 0; i < TOTAL_WEEKS; i++) gantt.colWidth(FIRST_DATE_COL + i, 60);
+
+    // --- Header row 1: WBS labels + project-window banner (live formula) ---
+    gantt.write('A1', 'WBS');
+    gantt.write('B1', 'タスク');
+    gantt.write('C1', '担当');
+    gantt.write('D1', '開始');
+    gantt.write('E1', '終了');
+    gantt.write('F1', '日数');
+    gantt.write('G1', 'プロジェクト期間 (Config シート参照)');
+    ['A1:A2','B1:B2','C1:C2','D1:D2','E1:E2','F1:F2'].forEach(r => gantt.merge(r));
+    gantt.merge(`G1:${lastWeekCol}1`);
+    gantt.style(`A1:F2`, { bold: true, bgColor: '#44546a', color: '#ffffff', align: 'center', border: true });
+    gantt.style(`G1:${lastWeekCol}1`, { bold: true, bgColor: '#44546a', color: '#ffffff', align: 'center', border: true });
+
+    // --- Header row 2: G2 = Config!B2; H2 = G2+7; I2 = H2+7; ...
+    //     Editing Config!B2 cascades to all week columns and the CF bars re-evaluate.
+    for (let i = 0; i < TOTAL_WEEKS; i++) {
+      const col = colLetter(FIRST_DATE_COL + i);
+      if (i === 0) {
+        gantt.write(`${col}2`, '=Config!$B$2');
+      } else {
+        const prevCol = colLetter(FIRST_DATE_COL + i - 1);
+        gantt.write(`${col}2`, `=${prevCol}2+7`);
+      }
+      gantt.style(`${col}2`, {
+        numFmt: 'M/d',
+        bold: true, align: 'center', fontSize: 11,
+        bgColor: '#d9e2f3', border: true
+      });
+    }
+
+    // --- Task rows: chained start/end (formulas, not literal dates) ---
+    //   D3 = =Config!$B$2         (first task starts at project start)
+    //   D{n} = =E{n-1}+1          (each subsequent task starts the day after the previous ends)
+    //   E   = =D + F - 1          (end = start + duration - 1)
+    //   F   = duration (number, user-editable)
+    tasks.forEach((t, i) => {
+      const row = 3 + i;
+      const isParent = !t.wbs.includes('.');
+      gantt.write(`A${row}`, t.wbs);
+      gantt.write(`B${row}`, (isParent ? '' : '　　') + t.name);
+      gantt.write(`C${row}`, t.owner);
+      if (i === 0) gantt.write(`D${row}`, '=Config!$B$2');
+      else         gantt.write(`D${row}`, `=E${row - 1}+1`);
+      gantt.write(`E${row}`, `=D${row}+F${row}-1`);
+      gantt.write(`F${row}`, t.duration);
+      gantt.style(`A${row}:F${row}`, {
+        bold: isParent,
+        bgColor: isParent ? '#f2f2f2' : '#ffffff',
+        border: true
+      });
+      gantt.style(`A${row}`, { align: 'center' });
+      gantt.style(`C${row}:F${row}`, { align: 'center' });
+      gantt.style(`D${row}:E${row}`, { numFmt: 'm/d' });
+      // Date cells: just borders (the BAR will be applied by CF)
+      for (let w = 0; w < TOTAL_WEEKS; w++) {
+        const col = colLetter(FIRST_DATE_COL + w);
+        gantt.style(`${col}${row}`, { border: true });
+      }
+    });
+
+    // --- Conditional formatting: paint a week-cell when [task start, end] overlaps [week start, +6 days] ---
+    // G$2 = week start (locked row 2, relative col); $D3/$E3 = task start/end (locked col, relative row).
+    const lastRow = 2 + tasks.length;
+    tasks.forEach((t, i) => {
+      const row = 3 + i;
+      gantt.cf(`G${row}:${lastWeekCol}${row}`, {
+        formula: `=AND($E${row}>=G$2, $D${row}<=G$2+6)`,
+        style: { bgColor: t.color }
+      });
+    });
+
+    // --- Today line: paint the column containing today with a thick red left border ---
+    const today = new Date();
+    const todayWeekIdx = Math.floor((today - PROJECT_START) / (7 * 86400000));
+    if (todayWeekIdx >= 0 && todayWeekIdx < TOTAL_WEEKS) {
+      const todayCol = colLetter(FIRST_DATE_COL + todayWeekIdx);
+      for (let r = 1; r <= lastRow; r++) {
+        const cur = gantt.cells[`${todayCol}${r}`]?.s?.border || {};
+        gantt.style(`${todayCol}${r}`, { border: { ...cur, left: { style: 'thick', color: '#c00000' } } });
+      }
+    }
+
+    const view = new SheetView('#app', { workbook: wb });
+
+    window.wb = wb;
+    window.view = view;
+
+    view.on('change', e => console.log('[change]', e));
+    view.on('sheet-change', e => console.log('[sheet-change]', e));
+  </script>
+</body>
+</html>
