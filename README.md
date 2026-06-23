@@ -346,17 +346,42 @@ const view = new SheetView(container, {
   tabs: true,
 });
 
-view.on('change',     ({ ref, oldValue, newValue, type? }) => {})
-view.on('select',     ({ range }) => {})
-view.on('edit-start', ({ ref }) => {})
-view.on('edit-end',   ({ ref }) => {})
-view.on('sheet-change', ({ name }) => {})
-view.on('image-change', ({ id }) => {})
-
 view.refresh()
 view.setSheet(newSheet) / view.setWorkbook(wb)
 view.focusCell('B12')
+view.toJSON()        // ← latest .aix.json object
+view.toAixJson()     // ← latest .aix.json string
+await view.toXLSX()  // ← xlsx bytes
 view.destroy()
+```
+
+### Events
+
+All events also exist as React props (camelCase: `onChange`, `onSelect`, …).
+
+| Event | Payload | When |
+|---|---|---|
+| `change` | `{ ref, oldValue, newValue }` | A cell value/formula was committed |
+| `change` | `{ type: 'merge' \| 'unmerge' }` | Merge or unmerge applied |
+| `change` | `{ type: 'border' }` | Border style applied |
+| `change` | `{ type: 'numfmt' }` | Number format applied |
+| `change` | `{ type: 'cf-add' \| 'cf-delete' }` | Conditional-formatting rule mutated |
+| `change` | `{ type: 'fill', src, target }` | Autofill drag completed |
+| `select` | `{ range }` | Selection moved (active cell or range) |
+| `edit-start` | `{ ref }` | Cell entered edit mode |
+| `edit-end`   | `{ ref }` | Cell left edit mode (commit or cancel) |
+| `sheet-change` | `{ name, index }` | Active sheet tab changed |
+| `image-change` | `{ id }` | Image added / moved / resized / removed |
+
+The single `change` event covers everything that mutates the workbook, so a
+"dirty" flag is just:
+
+```jsx
+const [dirty, setDirty] = useState(false);
+<SheetViewReact onChange={() => setDirty(true)} ... />;
+// after a successful save:
+await fetch('/api/save', { body: viewRef.current.toAixJson() });
+setDirty(false);
 ```
 
 ### Toolbar features

@@ -19,7 +19,7 @@ export const SheetViewReact = forwardRef(function SheetViewReact(props, ref) {
   const {
     workbook, sheet, rows, cols, readOnly,
     toolbar, formulaBar, statusBar, tabs,
-    onChange, onSelect, onEditStart, onEditEnd, onSheetChange,
+    onChange, onSelect, onEditStart, onEditEnd, onSheetChange, onImageChange,
     style, className, ...rest
   } = props;
 
@@ -37,6 +37,7 @@ export const SheetViewReact = forwardRef(function SheetViewReact(props, ref) {
     if (onEditStart)   view.on('edit-start', onEditStart);
     if (onEditEnd)     view.on('edit-end', onEditEnd);
     if (onSheetChange) view.on('sheet-change', onSheetChange);
+    if (onImageChange) view.on('image-change', onImageChange);
     return () => view.destroy();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workbook, sheet]);

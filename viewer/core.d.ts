@@ -21,13 +21,35 @@ export interface SheetViewOptions {
   tabs?: boolean;
 }
 
-export interface ChangeEvent { ref: string; oldValue: unknown; newValue: unknown }
+/** Fired on a cell value/formula edit (commit). */
+export interface CellChangeEvent {
+  ref: string;
+  oldValue: unknown;
+  newValue: unknown;
+}
+/**
+ * Fired on structural / formatting operations performed via the toolbar
+ * or programmatic ops. The `type` discriminates which operation.
+ *   - 'merge' / 'unmerge'   — cell merge changes
+ *   - 'border'              — border style applied to a range
+ *   - 'numfmt'              — number format applied
+ *   - 'cf-add' / 'cf-delete'— conditional-formatting rule mutated
+ *   - 'fill'                — autofill drag completed (carries src / target)
+ */
+export interface OperationChangeEvent {
+  type: 'merge' | 'unmerge' | 'border' | 'numfmt' | 'cf-add' | 'cf-delete' | 'fill';
+  src?: string;
+  target?: string;
+}
+export type ChangeEvent = CellChangeEvent | OperationChangeEvent;
+
 export interface SelectEvent { range: string }
 export interface EditEvent   { ref: string }
 export interface SheetChangeEvent { name: string; index: number }
+export interface ImageChangeEvent { id: string }
 
 export type SheetViewEvent =
-  | 'change' | 'select' | 'edit-start' | 'edit-end' | 'sheet-change';
+  | 'change' | 'select' | 'edit-start' | 'edit-end' | 'sheet-change' | 'image-change';
 
 export class SheetView {
   constructor(container: string | HTMLElement, options?: SheetViewOptions);
@@ -53,6 +75,7 @@ export class SheetView {
   on(event: 'edit-start',   handler: (e: EditEvent)        => void): this;
   on(event: 'edit-end',     handler: (e: EditEvent)        => void): this;
   on(event: 'sheet-change', handler: (e: SheetChangeEvent) => void): this;
+  on(event: 'image-change', handler: (e: ImageChangeEvent) => void): this;
   off(event: SheetViewEvent, handler: (...args: any[]) => void): this;
 }
 

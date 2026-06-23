@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { Sheet, Workbook, AixSheetData, AixWorkbookData } from '../sdk/sheet';
-import type { SheetView, SheetViewOptions, ChangeEvent, SelectEvent, EditEvent, SheetChangeEvent } from './core';
+import type { SheetView, SheetViewOptions, ChangeEvent, SelectEvent, EditEvent, SheetChangeEvent, ImageChangeEvent } from './core';
 
 export interface SheetViewReactProps extends Omit<SheetViewOptions, 'sheet' | 'workbook'> {
   /** Multi-sheet workbook. Changing identity remounts the view. */
@@ -12,6 +12,7 @@ export interface SheetViewReactProps extends Omit<SheetViewOptions, 'sheet' | 'w
   onEditStart?:   (e: EditEvent)        => void;
   onEditEnd?:     (e: EditEvent)        => void;
   onSheetChange?: (e: SheetChangeEvent) => void;
+  onImageChange?: (e: ImageChangeEvent) => void;
   style?: CSSProperties;
   className?: string;
 }
