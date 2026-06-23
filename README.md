@@ -17,6 +17,129 @@ AI-friendly spreadsheet SDK + embeddable viewer UI.
 
 ---
 
+## Why "AI-friendly"?
+
+Existing spreadsheet libraries (ExcelJS, SheetJS, openpyxl …) were written for
+humans years before LLMs existed. They have **deep API trees, multiple wrong
+"close enough" spellings that silently no-op, and binary file formats** — all of
+which LLMs hallucinate against. aix-sheet pushes in the opposite direction:
+
+### 1. One way to address a cell: **A1 strings**
+
+```js
+sheet.write('A1', 42)             // ✅
+sheet.write('A1:C3', [[...]])     // ✅
+sheet.write({ row: 0, col: 0 }, 42)   // ❌ INVALID_REF: A1 形式で指定してください
+```
+
+No `{row, col}` vs `[row, col]` vs `0-based` vs `1-based` ambiguity. LLMs
+already know A1 notation from Excel — they don't have to learn yours.
+
+### 2. Errors that tell the model exactly what to do next
+
+Every error has a stable **code prefix** and a message that lists the valid
+alternatives in the same line. When an LLM hallucinates a CSS-style key:
+
+```js
+sheet.style('A1', { fontWeight: 'bold' })
+// Throws:
+// [INVALID_STYLE_KEY] 未知のスタイルキー: "fontWeight".
+//   利用可能: bold, italic, underline, color, bgColor, align, fontSize, fontFamily, border, numFmt
+
+sheet.style('A1', { align: 'middle' })
+// [INVALID_ALIGN] align は "left" | "center" | "right" のみ. 受け取った値: "middle"
+
+sheet.write('A1:B5', [1, 2, 3])
+// [SHAPE_MISMATCH] 配列長 3 が ... と一致しません
+```
+
+The next tool-call retry from the LLM usually gets it right because the fix is
+literally in the error message — no guesswork, no doc-fetching.
+
+### 3. **Tiny** surface area (fits in one context window)
+
+The entire reference is in [`sdk/llms.txt`](sdk/llms.txt) — about 270 lines.
+Drop it into the system prompt and a model can use the whole SDK without ever
+reading the source.
+
+```js
+// All of these are the entire SDK you need to remember:
+sheet.write / value / get / style / clear
+sheet.merge / unmerge / cf / fill
+sheet.addImage / colWidth / rowHeight
+sheet.insertRow / deleteRow / insertCol / deleteCol
+sheet.toJSON / save / toCSV / toXLSX / toMarkdown
+```
+
+No "open the workbook, get the worksheet, get the cell, set the font, set the
+fill, set the alignment, save the workbook" ceremony.
+
+### 4. **Plain JSON** file format — the model can just edit it
+
+```json
+{ "type": "aix-sheet",
+  "cells": {
+    "A1": { "v": "Hello", "s": { "bold": true } },
+    "B1": { "f": "=SUM(A1:A10)" } } }
+```
+
+When a tool-use round-trip is too expensive, the agent can ask the user to
+paste the `.aix.json` directly, edit the JSON in-place, and hand it back.
+[`sdk/llms.txt`](sdk/llms.txt) documents the format alongside the API.
+
+### 5. **Excel-compatible formulas** — no DSL to memorize
+
+```js
+sheet.write('B5', '=SUM(B2:B4)')
+sheet.write('C5', '=IF(B5>1000, "大", "小")')
+sheet.cf('G3:Z3', { formula: '=AND($E3>=G$2, $D3<=G$2+6)', style: {...} })
+```
+
+LLMs already know Excel formulas. The viewer evaluates a useful subset
+(`SUM/AVG/MAX/MIN/COUNT/COUNTA/IF/AND/OR/NOT/WEEKDAY`, absolute refs,
+`ROW()`/`COLUMN()`, `=`/`<>` comparisons) and Excel re-evaluates the rest on
+open.
+
+### 6. **`toMarkdown()`** — round-trip sheet state into the prompt
+
+```js
+const ctx = sheet.toMarkdown({ maxRows: 30 });
+// | A | B | C |
+// | --- | --- | --- |
+// | 商品 | 価格 | 合計 |
+// | りんご | 120 | 360 |
+// | ...
+```
+
+Cheap, deterministic, lossless-enough representation for "here's what the sheet
+looks like now — what should I change?" prompts. No screenshot, no token-heavy
+JSON.
+
+### 7. **Anti-patterns explicitly listed**
+
+[`sdk/llms.txt`](sdk/llms.txt) ends with a section that names common
+hallucinations and shows the correct form. The model reads it once and stops
+making those mistakes.
+
+```
+❌ sheet.write({row: 0, col: 1}, "x")
+❌ sheet.style("A1", { fontWeight: "bold" })
+❌ sheet.style("A1", { textAlign: "left" })
+❌ JSON.parse(sheet.toJSON())   // toJSON() already returns an object
+```
+
+### 8. One import, zero build
+
+```js
+import { Sheet, Workbook } from 'aix-sheet';
+```
+
+Pure ESM, no transpile, no `.d.ts` mismatch, no "module not found" maze.
+Works the same in Node and the browser, and the viewer is a separate import
+so headless agents don't pull DOM code.
+
+---
+
 ## Install
 
 This package is distributed via GitHub (not yet on the npm registry):
@@ -287,18 +410,6 @@ view.destroy()
 A workbook file uses `"type": "aix-workbook"` with a `sheets[]` array of the same shape (minus `type`/`version`).
 
 You **may edit this JSON directly** — the loader will accept hand-edited files.
-
----
-
-## Why a custom format?
-
-LLMs struggle with the complexity of existing Excel libraries (deeply nested
-APIs, version drift, missing docs). `aix-sheet` keeps the SDK surface tiny,
-the API names obvious, and the file format human-readable JSON. AI agents can
-either call the SDK or edit the JSON directly. Final XLSX conversion is
-deferred to a known-good library (`xlsx-js-style` for the styled output).
-
-See [`sdk/llms.txt`](sdk/llms.txt) — drop it into your LLM's system prompt.
 
 ---
 
