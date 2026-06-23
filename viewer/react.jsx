@@ -50,6 +50,12 @@ export const SheetViewReact = forwardRef(function SheetViewReact(props, ref) {
     switchSheet: (n) => viewRef.current?.switchSheet(n),
     addSheet:    (n) => viewRef.current?.addSheet(n),
     focusCell:   (r) => viewRef.current?.focusCell(r),
+    /** Latest .aix.json as a plain object (workbook or single sheet). */
+    toJSON:      () => viewRef.current?.toJSON(),
+    /** Same as toJSON() but stringified. */
+    toAixJson:   (pretty) => viewRef.current?.toAixJson(pretty),
+    /** Promise<ArrayBuffer|Buffer> — xlsx bytes. */
+    toXLSX:      () => viewRef.current?.toXLSX(),
     view:        () => viewRef.current
   }), []);
 

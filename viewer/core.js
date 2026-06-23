@@ -116,6 +116,36 @@ export class SheetView extends EventBus {
   /** Get the underlying Sheet instance. */
   getSheet() { return this.sheet; }
 
+  /**
+   * Return the latest workbook (or single sheet) as a plain object — the
+   * `.aix.json` representation. Use this from host code to grab current state
+   * after edits (typically inside an `onChange` handler).
+   *
+   *   const json = view.toJSON();        // { type: 'aix-workbook', ... }
+   *   localStorage.setItem('doc', JSON.stringify(json));
+   */
+  toJSON() {
+    return this.workbook.sheets.length > 1
+      ? this.workbook.toJSON()
+      : this.sheet.toJSON();
+  }
+
+  /** Same as toJSON() but returns a JSON string. */
+  toAixJson(pretty = true) {
+    return JSON.stringify(this.toJSON(), null, pretty ? 2 : 0);
+  }
+
+  /**
+   * Build an .xlsx ArrayBuffer (browser) / Buffer (Node) of the current state.
+   * Requires xlsx-js-style + jszip (loaded on demand by the "Excel保存" button
+   * in the viewer, or installed via npm).
+   */
+  toXLSX() {
+    return this.workbook.sheets.length > 1
+      ? this.workbook.toXLSX()
+      : this.sheet.toXLSX();
+  }
+
   /** Switch active sheet by name or index. */
   switchSheet(nameOrIndex) {
     if (this.isEditing) this._commitEdit();

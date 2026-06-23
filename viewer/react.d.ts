@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import type { Sheet, Workbook } from '../sdk/sheet';
+import type { Sheet, Workbook, AixSheetData, AixWorkbookData } from '../sdk/sheet';
 import type { SheetView, SheetViewOptions, ChangeEvent, SelectEvent, EditEvent, SheetChangeEvent } from './core';
 
 export interface SheetViewReactProps extends Omit<SheetViewOptions, 'sheet' | 'workbook'> {
@@ -25,6 +25,12 @@ export interface SheetViewReactHandle {
   switchSheet: (nameOrIndex: string | number) => void;
   addSheet: (name?: string) => Sheet | undefined;
   focusCell: (ref: string) => void;
+  /** Latest .aix.json as a plain object (workbook for multi-sheet, sheet otherwise). */
+  toJSON: () => AixWorkbookData | AixSheetData | undefined;
+  /** Same as toJSON() but stringified. */
+  toAixJson: (pretty?: boolean) => string | undefined;
+  /** xlsx bytes (ArrayBuffer in browser, Buffer in Node). */
+  toXLSX: () => Promise<ArrayBuffer | Buffer> | undefined;
   view: () => SheetView | null;
 }
 

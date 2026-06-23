@@ -1,4 +1,4 @@
-import type { Sheet, Workbook } from '../sdk/sheet';
+import type { Sheet, Workbook, AixSheetData, AixWorkbookData } from '../sdk/sheet';
 
 export interface SheetViewOptions {
   /** Multi-sheet workbook (preferred). */
@@ -40,6 +40,12 @@ export class SheetView {
   switchSheet(nameOrIndex: string | number): void;
   addSheet(name?: string): Sheet;
   focusCell(ref: string): void;
+  /** Latest .aix.json as a plain object. */
+  toJSON(): AixWorkbookData | AixSheetData;
+  /** Same as toJSON() but stringified. */
+  toAixJson(pretty?: boolean): string;
+  /** xlsx bytes; requires xlsx-js-style + jszip. */
+  toXLSX(): Promise<ArrayBuffer | Buffer>;
   destroy(): void;
 
   on(event: 'change',       handler: (e: ChangeEvent)      => void): this;
