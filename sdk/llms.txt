@@ -226,11 +226,29 @@ sheet.clear("A1:C5")            // clear values & styles in range
 
 ```js
 sheet.usedRange()       // → { rows: 10, cols: 4 }
-sheet.toMarkdown()      // → markdown table of computed values
+sheet.toMarkdown()      // → markdown table + meta sections (see below)
 sheet.toMarkdown({ maxRows: 100 })
+sheet.toMarkdown({ meta: false })  // data table only
 sheet.toJSON()          // → AixSheetData object
 sheet.toCSV()           // → CSV string
 ```
+
+**`toMarkdown()` is your main "read" tool.** It returns:
+
+1. A markdown table of *computed values* (formulas already resolved).
+2. A `**Formulas:**` list — every cell whose `f` is set, so you don't
+   overwrite a derived cell when editing.
+3. A `**Merges:**` list of merged ranges.
+4. A `**Conditional formatting:**` list. When more than ~30 CF rules
+   share the same style (typical for Gantt overlays with 1000+ per-cell
+   rules), they are auto-grouped by style with a sample formula — so the
+   output stays compact even for huge sheets.
+
+Typical workflow:
+   1. `toMarkdown()` to see what the sheet shows and which cells are derived.
+   2. `get(ref)` for a specific cell's raw `{ v, f, s }` if you need more detail.
+   3. Use `write` / `style` / `merge` / `cf` to make changes.
+   4. `toMarkdown()` again to verify.
 
 ### Output
 

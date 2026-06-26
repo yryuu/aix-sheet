@@ -102,18 +102,60 @@ open.
 
 ### 6. **`toMarkdown()`** — round-trip sheet state into the prompt
 
+A single call gives the model everything it needs to *understand* AND *edit*
+the sheet without overwriting derived values:
+
 ```js
-const ctx = sheet.toMarkdown({ maxRows: 30 });
-// | A | B | C |
-// | --- | --- | --- |
-// | 商品 | 価格 | 合計 |
-// | りんご | 120 | 360 |
-// | ...
+const ctx = sheet.toMarkdown();
 ```
 
-Cheap, deterministic, lossless-enough representation for "here's what the sheet
-looks like now — what should I change?" prompts. No screenshot, no token-heavy
-JSON.
+```
+|  | A | B | C |
+| --- | --- | --- |
+| 1 | 商品 | 価格 | 在庫 |
+| 2 | りんご | 120 | 50 |
+| 3 | みかん | 80 | 100 |
+| 4 | ぶどう | 350 | 20 |
+| 5 | 合計 | 550 | 170 |
+
+**Formulas:**
+- `B5` = `=SUM(B2:B4)`
+- `C5` = `=SUM(C2:C4)`
+
+**Merges:**
+- `A1:C1`
+
+**Conditional formatting:**
+- `C2:C4` when `=C2<30` → bgColor=#ffc7ce, color=#9c0006
+```
+
+- The data table shows **computed values** (formulas already resolved), so the
+  model reads it like a human would read Excel.
+- The **Formulas** section lets the model see "B5 is a SUM" and avoid
+  accidentally writing a literal `550` over it.
+- **Merges** and **Conditional formatting** sections expose structure that
+  isn't visible in the values but matters when editing.
+- When a sheet has hundreds of similar CF rules (a Gantt-style overlay often
+  generates 1000+), they're auto-grouped by style with a sample formula, so
+  the section stays compact:
+
+  ```
+  **Conditional formatting:** (1104 rules, grouped by style)
+  - 368 rules over `G2:V24` → bgColor=#70AD47
+    sample: `G2` when `=AND(D2<=DATE(2026,7,7), E2>=DATE(2026,7,1), F2="完了")`
+  - 368 rules over `G2:V24` → bgColor=#FFC000
+    sample: `G2` when `=AND(..., F2="進行中")`
+  ...
+  ```
+
+Options:
+
+```js
+sheet.toMarkdown({ maxRows: 30 })     // cap the data table
+sheet.toMarkdown({ meta: false })     // data table only (legacy behavior)
+```
+
+No screenshot, no token-heavy JSON, no separate "describe this sheet" call.
 
 ### 7. **Anti-patterns explicitly listed**
 
@@ -319,8 +361,10 @@ sheet.toCSV()  / Sheet.fromCSV(text)
 await sheet.toXLSX()                    // requires xlsx-js-style (+ jszip)
 await wb.toXLSX()                       // all sheets
 
-// LLM context helper
-sheet.toMarkdown({ maxRows? })
+// LLM context helper (data table + Formulas / Merges / CF meta sections;
+// CF lists auto-group by style once you go over 30 rules — see the
+// "Why AI-friendly #6" section above for a sample output)
+sheet.toMarkdown({ maxRows?, meta? })
 ```
 
 ### Supported formula functions
