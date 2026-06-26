@@ -265,6 +265,15 @@ export class Workbook {
   toJSON(): AixWorkbookData;
   save(path: string): Promise<this>;
   toXLSX(): Promise<ArrayBuffer | Buffer>;
+  /**
+   * Workbook-level markdown for LLM context.
+   *   toMarkdown()                 → TOC table (one row per sheet)
+   *   toMarkdown("SheetName")      → that sheet's full toMarkdown()
+   *   toMarkdown({ all: true })    → every sheet concatenated
+   */
+  toMarkdown(
+    arg?: string | { all?: boolean; maxRows?: number; meta?: boolean }
+  ): string;
 }
 
 /** Helpers */

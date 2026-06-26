@@ -1431,6 +1431,44 @@ export class Workbook {
     };
   }
 
+  /**
+   * Workbook-level markdown — by default returns a compact table of contents
+   * (one row per sheet, with size + formula/merge/CF counts). Use this first
+   * when reading an unknown workbook, then call `wb.sheet(name).toMarkdown()`
+   * on the specific sheet you want to drill into.
+   *
+   *   wb.toMarkdown()                        // TOC
+   *   wb.toMarkdown('Sales')                 // shorthand for wb.sheet('Sales').toMarkdown()
+   *   wb.toMarkdown({ all: true })           // every sheet concatenated (heavy)
+   */
+  toMarkdown(arg) {
+    // Single-sheet shortcut
+    if (typeof arg === 'string') {
+      const s = this.sheet(arg);
+      if (!s) throw err('SHEET_NOT_FOUND', `シートが見つかりません: ${arg}`);
+      return s.toMarkdown();
+    }
+    const opts = arg && typeof arg === 'object' ? arg : {};
+    if (opts.all) {
+      return this.sheets
+        .map(s => `# ${s.name}\n\n${s.toMarkdown(opts)}`)
+        .join('\n\n');
+    }
+    // Default: TOC
+    const lines = [`# Workbook (${this.sheets.length} sheets)`, ''];
+    lines.push('| Sheet | Range | Formulas | Merges | CF rules |');
+    lines.push('| --- | --- | --- | --- | --- |');
+    for (const s of this.sheets) {
+      const u = s.usedRange();
+      const range = u.rows === 0 ? '*(empty)*' : `${makeRef(0, 0)}:${makeRef(u.rows - 1, u.cols - 1)}`;
+      const fc = Object.values(s.cells).filter(c => c.f).length;
+      lines.push(`| ${s.name} | ${range} | ${fc} | ${s.merges.length} | ${s.cfs.length} |`);
+    }
+    lines.push('');
+    lines.push('_Call `sheet.toMarkdown()` (or `wb.toMarkdown("SheetName")`) for the actual content of a sheet._');
+    return lines.join('\n');
+  }
+
   async save(path) {
     if (typeof process === 'undefined' || !process.versions?.node) {
       throw err('NODE_ONLY', 'save() は Node.js のみ');

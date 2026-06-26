@@ -155,6 +155,22 @@ sheet.toMarkdown({ maxRows: 30 })     // cap the data table
 sheet.toMarkdown({ meta: false })     // data table only (legacy behavior)
 ```
 
+**Workbook scope.** For multi-sheet files, dumping every sheet at once is
+wasteful. `Workbook.toMarkdown()` returns a compact table-of-contents first;
+the model picks the sheet it wants and asks for *that* one:
+
+```js
+wb.toMarkdown()
+// # Workbook (2 sheets)
+// | Sheet | Range | Formulas | Merges | CF rules |
+// | --- | --- | --- | --- | --- |
+// | Sales      | A1:C5  | 2 | 0 | 1    |
+// | ガントチャート | A1:V24 | 0 | 0 | 1104 |
+
+wb.toMarkdown('Sales')       // shorthand for wb.sheet('Sales').toMarkdown()
+wb.toMarkdown({ all: true }) // every sheet concatenated (rarely what you want)
+```
+
 No screenshot, no token-heavy JSON, no separate "describe this sheet" call.
 
 ### 7. **Anti-patterns explicitly listed**

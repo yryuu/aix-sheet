@@ -244,11 +244,23 @@ sheet.toCSV()           // → CSV string
    rules), they are auto-grouped by style with a sample formula — so the
    output stays compact even for huge sheets.
 
+**For workbooks with multiple sheets, do NOT dump every sheet at once.**
+Use the workbook-level helper to get a TOC first, then drill into one
+sheet at a time:
+
+```js
+wb.toMarkdown()              // TOC: each sheet with size + formula/merge/CF counts
+wb.toMarkdown("Sales")       // → wb.sheet("Sales").toMarkdown()
+wb.toMarkdown({ all: true }) // every sheet concatenated (rarely needed)
+```
+
 Typical workflow:
-   1. `toMarkdown()` to see what the sheet shows and which cells are derived.
-   2. `get(ref)` for a specific cell's raw `{ v, f, s }` if you need more detail.
-   3. Use `write` / `style` / `merge` / `cf` to make changes.
-   4. `toMarkdown()` again to verify.
+   1. `wb.toMarkdown()` to see which sheets exist and how big they are.
+   2. `wb.toMarkdown("SheetName")` (or `sheet.toMarkdown()`) for the
+      sheet you actually need.
+   3. `get(ref)` for a specific cell's raw `{ v, f, s }` if you need more detail.
+   4. Use `write` / `style` / `merge` / `cf` to make changes.
+   5. `toMarkdown()` again to verify.
 
 ### Output
 
