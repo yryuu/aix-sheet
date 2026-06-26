@@ -1160,10 +1160,12 @@ class Sheet {
         if (typeof v === 'number') return v;
         if (v === '') return '0';
         if (typeof v === 'string') {
-          // Coerce ISO-style date strings to Excel serials so that comparisons
-          // like D2<=DATE(2026,7,7) work even when the cell stores the date
-          // as a plain string ("2026-07-01") rather than a Date object.
-          const dm = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+          // Coerce date-looking strings to Excel serials so comparisons like
+          // D2<=DATE(2026,7,7) work even when the cell stores the date as a
+          // plain string. Accept both "2026-07-01" and "2026/7/1" (the latter
+          // is what numFmt 'yyyy/m/d' renders, and what users / AIs commonly
+          // pass to write()).
+          const dm = v.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
           if (dm) return dateToSerial(new Date(+dm[1], +dm[2] - 1, +dm[3]));
         }
         return isNaN(Number(v)) ? JSON.stringify(String(v)) : Number(v);
