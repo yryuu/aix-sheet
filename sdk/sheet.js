@@ -215,10 +215,24 @@ const _BORDER_STYLE_MAP = {
   thin: 'thin', medium: 'medium', thick: 'thick',
   dotted: 'dotted', dashed: 'dashed', double: 'double'
 };
-/** Excel expects ARGB (8 hex chars). Pad 6-char hex with full-opacity FF. */
+/**
+ * Excel expects ARGB (8 hex chars). Accepts:
+ *   "#fff" / "fff"        → "FFFFFFFF"
+ *   "#abcd" (rgba short)  → "DDAABBCC"  (Excel still wants AARRGGBB)
+ *   "#217346"             → "FF217346"
+ *   "FF217346"            → kept as-is
+ * Anything else falls back to full-opacity black.
+ */
 function _toARGB(hex) {
-  const h = String(hex || '').replace('#', '').toUpperCase();
-  return h.length === 6 ? 'FF' + h : (h.length === 8 ? h : 'FF000000');
+  let h = String(hex || '').replace('#', '').toUpperCase();
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');         // rgb shorthand
+  if (h.length === 4) {                                                  // rgba shorthand
+    const [r, g, b, a] = h.split('').map(c => c + c);
+    h = a + r + g + b;                                                   // → AARRGGBB
+  }
+  if (h.length === 6) return 'FF' + h;
+  if (h.length === 8) return h;
+  return 'FF000000';
 }
 function _toXlsxBorderSide(side) {
   if (!side) return undefined;

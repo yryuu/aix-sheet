@@ -21,17 +21,29 @@ function xmlEscape(s) {
     ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[ch]));
 }
 
+/** Normalize a CSS-ish hex color (#fff, #abc123, #FF217346…) to ARGB (8 hex). */
+function toARGB(hex) {
+  let h = String(hex || '').replace('#', '').toUpperCase();
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  if (h.length === 4) {
+    const [r, g, b, a] = h.split('').map(c => c + c);
+    h = a + r + g + b;
+  }
+  if (h.length === 6) return 'FF' + h;
+  if (h.length === 8) return h;
+  return 'FF000000';
+}
+
 /** Build a <dxf> element from a style object (subset: bgColor, color, bold, italic). */
 function buildDxf(style) {
   const parts = [];
   const fontParts = [];
   if (style.bold) fontParts.push('<b/>');
   if (style.italic) fontParts.push('<i/>');
-  if (style.color) fontParts.push(`<color rgb="FF${style.color.replace('#','').toUpperCase()}"/>`);
+  if (style.color) fontParts.push(`<color rgb="${toARGB(style.color)}"/>`);
   if (fontParts.length) parts.push(`<font>${fontParts.join('')}</font>`);
   if (style.bgColor) {
-    const rgb = 'FF' + style.bgColor.replace('#','').toUpperCase();
-    parts.push(`<fill><patternFill patternType="solid"><bgColor rgb="${rgb}"/></patternFill></fill>`);
+    parts.push(`<fill><patternFill patternType="solid"><bgColor rgb="${toARGB(style.bgColor)}"/></patternFill></fill>`);
   }
   return `<dxf>${parts.join('')}</dxf>`;
 }
