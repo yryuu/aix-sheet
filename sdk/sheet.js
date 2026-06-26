@@ -1079,6 +1079,9 @@ class Sheet {
       return js + 1;
     }
 
+    // DATE() is also injected into the JS-eval context below so it works
+    // when nested inside AND/OR/comparisons (e.g. "D2<=DATE(2026,7,7)").
+
     // Allow optional $ on column and/or row for absolute refs
     const REF_RE = /(?:'([^']+)'!|([A-Za-z_][\w]*)!)?(\$?[A-Za-z]+\$?\d+)/g;
     const resolved = expr.replace(REF_RE, (m, qSheet, uSheet, ref) => {
@@ -1092,10 +1095,23 @@ class Sheet {
         if (_isDate(v)) return dateToSerial(v);
         if (typeof v === 'number') return v;
         if (v === '') return '0';
+        if (typeof v === 'string') {
+          // Coerce ISO-style date strings to Excel serials so that comparisons
+          // like D2<=DATE(2026,7,7) work even when the cell stores the date
+          // as a plain string ("2026-07-01") rather than a Date object.
+          const dm = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+          if (dm) return dateToSerial(new Date(+dm[1], +dm[2] - 1, +dm[3]));
+        }
         return isNaN(Number(v)) ? JSON.stringify(String(v)) : Number(v);
       } catch { return m; }
     });
-    return Function('"use strict";return(' + _xlOpsToJs(resolved) + ')')();
+    // Inject a handful of Excel functions into the JS eval scope so they work
+    // anywhere in the expression, not just as the top-level form.
+    const DATE  = (y, m, d) => dateToSerial(new Date(Number(y), Number(m) - 1, Number(d)));
+    const TODAY = () => { const n = new Date(); return dateToSerial(new Date(n.getFullYear(), n.getMonth(), n.getDate())); };
+    const NOW   = TODAY;
+    return Function('DATE', 'TODAY', 'NOW',
+      '"use strict";return(' + _xlOpsToJs(resolved) + ')')(DATE, TODAY, NOW);
   }
 
   _collectArgs(s, visited) {
