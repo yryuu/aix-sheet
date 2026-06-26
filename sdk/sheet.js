@@ -240,13 +240,27 @@ function _writeAOA(sheet, usedRange) {
 }
 
 function _patchDateCells(sheet, ws) {
-  // SheetJS aoa_to_sheet writes Date as ISO string by default. Replace those with
-  // numeric Excel serial + t:'n' + a numFmt (z) so Excel renders as date.
+  // SheetJS aoa_to_sheet writes Date as ISO string by default. Replace those
+  // with numeric Excel serial + t:'n' + numFmt (z) so Excel renders as date
+  // AND can compare them against DATE(...) in conditional-formatting formulas.
+  //
+  // We do the same for plain-string cells that *look* like dates
+  // ("YYYY-MM-DD" or "YYYY/M/D") — otherwise the value stays as text in the
+  // xlsx, and any CF formula doing date math against it silently evaluates
+  // to false.
   for (const [ref, cell] of Object.entries(sheet.cells)) {
-    if (!_isDate(cell.v) || !ws[ref]) continue;
+    if (!ws[ref]) continue;
+    let serial = null;
+    if (_isDate(cell.v)) {
+      serial = dateToSerial(cell.v);
+    } else if (typeof cell.v === 'string') {
+      const dm = cell.v.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+      if (dm) serial = dateToSerial(new Date(+dm[1], +dm[2] - 1, +dm[3]));
+    }
+    if (serial === null) continue;
     const fmt = cell.s?.numFmt || 'yyyy/m/d';
     ws[ref].t = 'n';
-    ws[ref].v = dateToSerial(cell.v);
+    ws[ref].v = serial;
     ws[ref].z = fmt;
   }
 }
