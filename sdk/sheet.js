@@ -215,10 +215,15 @@ const _BORDER_STYLE_MAP = {
   thin: 'thin', medium: 'medium', thick: 'thick',
   dotted: 'dotted', dashed: 'dashed', double: 'double'
 };
+/** Excel expects ARGB (8 hex chars). Pad 6-char hex with full-opacity FF. */
+function _toARGB(hex) {
+  const h = String(hex || '').replace('#', '').toUpperCase();
+  return h.length === 6 ? 'FF' + h : (h.length === 8 ? h : 'FF000000');
+}
 function _toXlsxBorderSide(side) {
   if (!side) return undefined;
   return { style: _BORDER_STYLE_MAP[side.style] || 'thin',
-           color: { rgb: (side.color || '#000000').replace('#', '') } };
+           color: { rgb: _toARGB(side.color || '#000000') } };
 }
 function _writeAOA(sheet, usedRange) {
   // Build aoa with Date → Date (SheetJS handles when cellDates), but for safety we
@@ -290,10 +295,10 @@ function _applySheetMetaToWS(sheet, ws, usedRange) {
     if (cell.s.bold)      ws[ref].s.font = { ...(ws[ref].s.font || {}), bold: true };
     if (cell.s.italic)    ws[ref].s.font = { ...(ws[ref].s.font || {}), italic: true };
     if (cell.s.underline) ws[ref].s.font = { ...(ws[ref].s.font || {}), underline: true };
-    if (cell.s.color)     ws[ref].s.font = { ...(ws[ref].s.font || {}), color: { rgb: cell.s.color.replace('#','') } };
+    if (cell.s.color)     ws[ref].s.font = { ...(ws[ref].s.font || {}), color: { rgb: _toARGB(cell.s.color) } };
     if (cell.s.fontSize)  ws[ref].s.font = { ...(ws[ref].s.font || {}), sz: cell.s.fontSize };
     if (cell.s.fontFamily) ws[ref].s.font = { ...(ws[ref].s.font || {}), name: cell.s.fontFamily };
-    if (cell.s.bgColor)   ws[ref].s.fill = { fgColor: { rgb: cell.s.bgColor.replace('#','') }, patternType: 'solid' };
+    if (cell.s.bgColor)   ws[ref].s.fill = { fgColor: { rgb: _toARGB(cell.s.bgColor) }, patternType: 'solid' };
     if (cell.s.align)     ws[ref].s.alignment = { horizontal: cell.s.align };
     if (cell.s.border) {
       const b = {};
