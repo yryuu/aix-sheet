@@ -865,6 +865,20 @@ class Sheet {
   }
 
   /** Render used range as a Markdown table (computed values). For LLM context. */
+  /**
+   * Render the sheet as Markdown for LLM context.
+   *
+   * Default output includes:
+   *   1. data table of computed values
+   *   2. **Formulas:** list of every cell with an `f` (so editors don't
+   *      accidentally overwrite a derived cell)
+   *   3. **Merges:** list of merged ranges (if any)
+   *   4. **Conditional formatting:** list of CF rules (if any)
+   *
+   * Options:
+   *   maxRows: cap the data table (default 50)
+   *   meta:    false to omit all three meta sections (legacy data-only output)
+   */
   toMarkdown(opts = {}) {
     const limit = opts.maxRows ?? 50;
     const u = this.usedRange();
@@ -879,6 +893,32 @@ class Sheet {
       lines.push('| ' + row.join(' | ') + ' |');
     }
     if (u.rows > limit) lines.push(`\n*...(${u.rows - limit} 行省略)*`);
+
+    if (opts.meta !== false) {
+      // Sort formula cells by row then column for stable, readable output
+      const formulaCells = Object.entries(this.cells)
+        .filter(([, c]) => c.f)
+        .map(([ref, c]) => ({ ref, f: c.f, p: parseRef(ref) }))
+        .sort((a, b) => a.p.row - b.p.row || a.p.col - b.p.col);
+      if (formulaCells.length) {
+        lines.push('', '**Formulas:**');
+        for (const { ref, f } of formulaCells) lines.push(`- \`${ref}\` = \`${f}\``);
+      }
+      if (this.merges.length) {
+        lines.push('', '**Merges:**');
+        for (const m of this.merges) {
+          lines.push(`- \`${makeRef(m.r1, m.c1)}:${makeRef(m.r2, m.c2)}\``);
+        }
+      }
+      if (this.cfs.length) {
+        lines.push('', '**Conditional formatting:**');
+        for (const rule of this.cfs) {
+          const styleHint = Object.entries(rule.style || {})
+            .map(([k, v]) => `${k}=${v}`).join(', ');
+          lines.push(`- \`${rule.range}\` when \`${rule.formula}\` → ${styleHint}`);
+        }
+      }
+    }
     return lines.join('\n');
   }
 
