@@ -911,11 +911,35 @@ class Sheet {
         }
       }
       if (this.cfs.length) {
-        lines.push('', '**Conditional formatting:**');
-        for (const rule of this.cfs) {
-          const styleHint = Object.entries(rule.style || {})
-            .map(([k, v]) => `${k}=${v}`).join(', ');
-          lines.push(`- \`${rule.range}\` when \`${rule.formula}\` → ${styleHint}`);
+        const styleHint = (s) => Object.entries(s || {}).map(([k, v]) => `${k}=${v}`).join(', ');
+        // When there's a manageable number of rules, list every one.
+        // Otherwise group by style (most Gantt-style setups create many
+        // per-cell rules that share the same look) and show a sample formula.
+        const compact = this.cfs.length > 30;
+        if (!compact) {
+          lines.push('', '**Conditional formatting:**');
+          for (const rule of this.cfs) {
+            lines.push(`- \`${rule.range}\` when \`${rule.formula}\` → ${styleHint(rule.style)}`);
+          }
+        } else {
+          lines.push('', `**Conditional formatting:** (${this.cfs.length} rules, grouped by style)`);
+          const byStyle = new Map();
+          for (const rule of this.cfs) {
+            const key = JSON.stringify(rule.style || {});
+            if (!byStyle.has(key)) byStyle.set(key, { style: rule.style, rules: [] });
+            byStyle.get(key).rules.push(rule);
+          }
+          for (const { style, rules } of byStyle.values()) {
+            let minR = Infinity, minC = Infinity, maxR = -Infinity, maxC = -Infinity;
+            for (const r of rules) {
+              const p = parseRange(r.range);
+              minR = Math.min(minR, p.r1); maxR = Math.max(maxR, p.r2);
+              minC = Math.min(minC, p.c1); maxC = Math.max(maxC, p.c2);
+            }
+            const bbox = `${makeRef(minR, minC)}:${makeRef(maxR, maxC)}`;
+            lines.push(`- ${rules.length} rules over \`${bbox}\` → ${styleHint(style)}`);
+            lines.push(`  sample: \`${rules[0].range}\` when \`${rules[0].formula}\``);
+          }
         }
       }
     }
