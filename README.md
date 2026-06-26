@@ -377,10 +377,31 @@ sheet.toCSV()  / Sheet.fromCSV(text)
 await sheet.toXLSX()                    // requires xlsx-js-style (+ jszip)
 await wb.toXLSX()                       // all sheets
 
-// LLM context helper (data table + Formulas / Merges / CF meta sections;
-// CF lists auto-group by style once you go over 30 rules — see the
-// "Why AI-friendly #6" section above for a sample output)
+// LLM context helper.
+// `sheet.toMarkdown()` returns a data table plus Formulas / Merges / CF
+// meta sections (CF auto-grouped by style past ~30 rules — see "Why
+// AI-friendly #6" for a sample). For a multi-sheet workbook, start with
+// `wb.toMarkdown()` (compact TOC) then drill into one sheet at a time
+// to keep the AI context small:
 sheet.toMarkdown({ maxRows?, meta? })
+wb.toMarkdown()                  // TOC: one row per sheet + counts
+wb.toMarkdown('SheetName')       // shortcut for wb.sheet(name).toMarkdown()
+wb.toMarkdown({ all: true })     // every sheet concatenated (rarely needed)
+```
+
+### Recommended AI read/write loop
+
+```js
+// 1. read: TOC first, then the sheet you actually need
+const toc = wb.toMarkdown();
+const md  = wb.toMarkdown('Sales');   // or sheet.toMarkdown()
+
+// 2. write: stick to the SDK (errors carry hints, derived cells stay safe)
+sheet.write('B5', '=SUM(B2:B4)');
+sheet.style('A1:C1', { bold: true });
+
+// 3. verify: re-render and compare
+const after = wb.toMarkdown('Sales');
 ```
 
 ### Supported formula functions
