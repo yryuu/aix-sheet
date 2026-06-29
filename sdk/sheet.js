@@ -342,6 +342,7 @@ class Sheet {
     this.images = [];       // [{ id, src, anchor, offset, size }]
     this.merges = [];       // [{ r1, c1, r2, c2 }] 0-based inclusive
     this.cfs = [];          // [{ range: "G3:Z11", formula: "=...", style: {bgColor, color, bold, italic} }]
+    this.frozenPane = null; // { rows, cols } — number of rows/cols to lock at top/left
     this.version = '1.0';
     this._imgCounter = 0;
   }
@@ -373,6 +374,9 @@ class Sheet {
       ? data.merges.map(m => (typeof m === 'string' ? Sheet._parseRangeToMerge(m) : { r1: m.r1, c1: m.c1, r2: m.r2, c2: m.c2 }))
       : [];
     s.cfs = Array.isArray(data.cfs) ? data.cfs.map(r => ({ ...r, style: { ...r.style } })) : [];
+    s.frozenPane = data.frozenPane && typeof data.frozenPane === 'object'
+      ? { rows: data.frozenPane.rows | 0, cols: data.frozenPane.cols | 0 }
+      : null;
     s.version = data.version || '1.0';
     return s;
   }
@@ -667,6 +671,28 @@ class Sheet {
       return v === true || v === 'TRUE' || (typeof v === 'number' && v !== 0);
     } catch { return false; }
   }
+
+  // ---- Freeze panes ----
+
+  /**
+   * Freeze the top N rows and left M columns. Use either:
+   *   sheet.freeze({ rows: 1, cols: 6 })   — explicit counts
+   *   sheet.freeze('G2')                   — A1: lock everything above and left of G2
+   *   sheet.freeze()                       — clear (same as unfreeze())
+   */
+  freeze(arg) {
+    if (arg === undefined || arg === null) { this.frozenPane = null; return this; }
+    if (typeof arg === 'string') {
+      const p = parseRef(arg);
+      this.frozenPane = { rows: p.row, cols: p.col };
+      return this;
+    }
+    const rows = Math.max(0, arg.rows | 0);
+    const cols = Math.max(0, arg.cols | 0);
+    this.frozenPane = (rows === 0 && cols === 0) ? null : { rows, cols };
+    return this;
+  }
+  unfreeze() { this.frozenPane = null; return this; }
 
   /** Return merged style overrides from any matching CF rules for (row, col). */
   cfStyleAt(row, col) {
@@ -1004,6 +1030,7 @@ class Sheet {
     if (this.images.length) out.images = this.images;
     if (this.merges.length) out.merges = this.merges.map(m => `${makeRef(m.r1, m.c1)}:${makeRef(m.r2, m.c2)}`);
     if (this.cfs.length) out.cfs = this.cfs;
+    if (this.frozenPane) out.frozenPane = this.frozenPane;
     return out;
   }
 
@@ -1091,6 +1118,10 @@ class Sheet {
     if (this.cfs.length) {
       const { injectCF } = await import('./xlsx-cf.js');
       out = await injectCF(out, [{ name: this.name, cfs: this.cfs }]);
+    }
+    if (this.frozenPane) {
+      const { injectPanes } = await import('./xlsx-panes.js');
+      out = await injectPanes(out, [{ name: this.name, frozenPane: this.frozenPane }]);
     }
     return out;
   }
@@ -1539,6 +1570,10 @@ export class Workbook {
     if (this.sheets.some(s => s.cfs && s.cfs.length > 0)) {
       const { injectCF } = await import('./xlsx-cf.js');
       out = await injectCF(out, this.sheets.map(s => ({ name: s.name, cfs: s.cfs })));
+    }
+    if (this.sheets.some(s => s.frozenPane)) {
+      const { injectPanes } = await import('./xlsx-panes.js');
+      out = await injectPanes(out, this.sheets.map(s => ({ name: s.name, frozenPane: s.frozenPane })));
     }
     return out;
   }
