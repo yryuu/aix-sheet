@@ -88,7 +88,11 @@
 
 /* ===== Table ===== */
 .aix-spreadsheet {
-  border-collapse: collapse;
+  /* `separate` (instead of `collapse`) is required for position: sticky on
+     TD/TH to work in Chrome/Safari — a long-standing engine bug. border-
+     spacing: 0 keeps the visual identical to collapsed borders. */
+  border-collapse: separate;
+  border-spacing: 0;
   table-layout: fixed;
   background: white;
   user-select: none;
@@ -100,11 +104,13 @@
   overflow: hidden;
   padding: 0;
 }
+/* Headers + corner. Stickiness is provided by JS scroll listener
+   (transform translate) — see _applyFrozenPane / _updateFrozenTransforms.
+   We only style appearance + z-index here. */
 .aix-col-header {
   background: #f8f8f8; text-align: center; font-weight: normal;
   font-size: 12px; color: #555;
   min-width: 100px; height: 22px;
-  position: sticky; top: 0; z-index: 10;
   border-bottom: 2px solid #bbb;
 }
 .aix-col-header:hover { background: #e8e8e8; }
@@ -113,7 +119,6 @@
   background: #f8f8f8; text-align: center; font-weight: normal;
   font-size: 12px; color: #555;
   width: 42px; min-width: 42px;
-  position: sticky; left: 0; z-index: 5;
   border-right: 2px solid #bbb;
   cursor: default;
 }
@@ -121,7 +126,6 @@
 .aix-row-header.aix-selected { background: #c6e0b4; font-weight: bold; }
 .aix-corner {
   background: #f0f0f0;
-  position: sticky; top: 0; left: 0; z-index: 20;
   width: 42px; min-width: 42px;
   border-right: 2px solid #bbb;
   border-bottom: 2px solid #bbb;
@@ -426,6 +430,19 @@
   border-radius: 2px;
   background: transparent;
 }
+
+/* ---- Freeze panes (Excel-style) ----
+   Visual stickiness applied via JS transform on scroll. We only set z-index
+   and background here so frozen cells paint above scrolled content without
+   bleed-through. */
+.aix-spreadsheet td.aix-sticky-x,
+.aix-spreadsheet td.aix-sticky-y { z-index: 2; background: #fff; position: relative; }
+.aix-spreadsheet th.aix-sticky-x,
+.aix-spreadsheet th.aix-sticky-y { z-index: 11; position: relative; }
+.aix-spreadsheet td.aix-sticky-xy { z-index: 3; background: #fff; position: relative; }
+.aix-spreadsheet th.aix-sticky-xy { z-index: 21; position: relative; }
+/* When a sticky cell has its own bgColor set inline (via style()), let that win */
+.aix-spreadsheet td[style*="background-color"] { /* no override needed */ }
 
 /* ---- Split button (e.g. "結合して中央 [▼]") ---- */
 .aix-split {

@@ -201,6 +201,9 @@
       }
     }
 
+    // Lock header row + WBS/タスク/担当/開始/終了/日数 (A〜F = 6 cols)
+    gantt.freeze({ rows: 2, cols: 6 });
+
     const view = new SheetView('#app', { workbook: wb });
 
     window.wb = wb;

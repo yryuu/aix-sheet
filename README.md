@@ -65,7 +65,7 @@ reading the source.
 ```js
 // All of these are the entire SDK you need to remember:
 sheet.write / value / get / style / clear
-sheet.merge / unmerge / cf / fill
+sheet.merge / unmerge / cf / fill / freeze
 sheet.addImage / colWidth / rowHeight
 sheet.insertRow / deleteRow / insertCol / deleteCol
 sheet.toJSON / save / toCSV / toXLSX / toMarkdown
@@ -346,6 +346,12 @@ sheet.merge('A1:D1')
 sheet.unmerge('A1:D1')
 sheet.mergeAt(row, col)
 
+// Freeze panes (Excel's ウィンドウ枠の固定)
+sheet.freeze({ rows: 1, cols: 6 })   // lock header row + WBS-side columns
+sheet.freeze('G2')                   // shorthand: lock everything above/left of G2
+sheet.unfreeze()
+sheet.frozenPane                     // → { rows, cols } | null
+
 // Conditional formatting (Excel-compatible; re-evaluates on open)
 sheet.cf('G3:Z3', {
   formula: '=AND(COLUMN()-7>=$D3, COLUMN()-7<=$E3)',
@@ -507,6 +513,7 @@ setDirty(false);
   "cfs": [
     { "range": "G3:Z3", "formula": "=$D3>0", "style": { "bgColor": "#4472c4" } }
   ],
+  "frozenPane": { "rows": 1, "cols": 6 },
   "images": []
 }
 ```

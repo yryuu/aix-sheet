@@ -105,6 +105,8 @@ export interface AixSheetData {
   merges?: string[];
   /** Conditional-formatting rules. */
   cfs?: CFRule[];
+  /** Frozen pane (top N rows / left M columns kept visible while scrolling). */
+  frozenPane?: { rows: number; cols: number };
 }
 
 export interface AixWorkbookData {
@@ -201,6 +203,20 @@ export class Sheet {
   unmerge(ref: string): this;
   /** Find the merge containing (row, col), or null. */
   mergeAt(row: number, col: number): MergeRange | null;
+
+  /**
+   * Freeze the top N rows and left M columns (Excel's ウィンドウ枠の固定).
+   * Locked rows/cols stay visible while the rest of the sheet scrolls in both
+   * the viewer and Excel.
+   *
+   *   sheet.freeze({ rows: 1, cols: 6 })   // explicit
+   *   sheet.freeze('G2')                   // A1 shorthand: lock above + left of G2
+   *   sheet.freeze() / sheet.unfreeze()    // clear
+   */
+  freeze(arg?: string | { rows?: number; cols?: number } | null): this;
+  unfreeze(): this;
+  /** Current frozen-pane state, or null when unfrozen. */
+  frozenPane: { rows: number; cols: number } | null;
 
   /**
    * Add a conditional-formatting rule. The viewer re-evaluates rules whenever

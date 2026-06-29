@@ -184,6 +184,25 @@ sheet.merges                   // → MergeRange[]
 - Merging an overlapping range throws `MERGE_OVERLAP`.
 - `insertRow / deleteRow / insertCol / deleteCol` remap merges automatically.
 
+### Freeze panes (ウィンドウ枠の固定)
+
+Lock the top N rows and / or left M columns so they stay visible while the
+rest of the sheet scrolls. Excel-compatible: round-trips through `.aix.json`
+and the xlsx export adds a real `<pane state="frozen"/>` so it works the same
+when opened in Excel.
+
+```js
+sheet.freeze({ rows: 1, cols: 6 })   // header row + WBS-side columns
+sheet.freeze('G2')                   // A1 shorthand: lock everything above + left of G2
+sheet.freeze({ rows: 2 })            // top two rows only
+sheet.freeze({ cols: 1 })            // leftmost column only
+sheet.unfreeze()
+sheet.frozenPane                     // → { rows, cols } | null
+```
+
+Typical use case: WBS/Gantt sheets where the task table on the left must stay
+in view while the user scrolls horizontally through weeks/months.
+
 ### Images
 
 ```js
@@ -313,7 +332,12 @@ The on-disk format is plain JSON:
     "B5": { "f": "=SUM(B2:B4)" }
   },
   "cols": { "A": 120 },
-  "rows": { "1": 24 }
+  "rows": { "1": 24 },
+  "merges": ["A1:B1"],
+  "cfs": [
+    { "range": "G3:Z3", "formula": "=$D3>0", "style": { "bgColor": "#4472c4" } }
+  ],
+  "frozenPane": { "rows": 1, "cols": 6 }
 }
 ```
 

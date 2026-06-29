@@ -832,8 +832,102 @@ export class SheetView extends EventBus {
       }
     }
     this._applyMerges();
+    this._applyFrozenPane();
     this._updateSelection();
     this._renderImages();
+  }
+
+  /**
+   * CSS-sticky implementation of Excel's freeze panes. Tags TDs / THs in the
+   * frozen region with classes; the actual stickiness is in styles.css.
+   * We compute cumulative left offsets for sticky columns so they sit edge-to-edge.
+   */
+  /**
+   * Freeze panes implementation using scroll-listener + CSS transform.
+   *
+   * We previously tried `position: sticky` on TDs but ran into multiple
+   * Chrome layout quirks (border-collapse, specificity vs the base
+   * `.aix-spreadsheet th { position: relative }` rule, etc.) that made the
+   * behavior unreliable in some sheets. Instead we now:
+   *
+   *   1. Tag the cells that should be frozen (top rows / left cols / corner)
+   *      AND the always-frozen row/col headers + top-left corner.
+   *   2. Bump their z-index so they paint above scrolled content.
+   *   3. On every scroll of `.aix-sheet-container`, set `transform: translate(...)`
+   *      on those cells so they visually stay put while the rest scrolls.
+   *
+   * Deterministic, no sticky-related bugs, works in any table layout.
+   */
+  _applyFrozenPane() {
+    // Reset any previous freeze classes / inline styles
+    this.table.querySelectorAll('.aix-sticky-x, .aix-sticky-y, .aix-sticky-xy').forEach(el => {
+      el.classList.remove('aix-sticky-x', 'aix-sticky-y', 'aix-sticky-xy');
+      el.style.transform = '';
+      el.style.zIndex = '';
+    });
+
+    const rowH = this.table.tHead?.rows[0];
+    const tbody = this.table.tBodies[0];
+    const fp = this.sheet.frozenPane;
+    const frozenRows = fp?.rows || 0;
+    const frozenCols = fp?.cols || 0;
+
+    // The row/column headers + the corner are ALWAYS frozen — that's how
+    // the row numbers and column letters stay visible while scrolling.
+    if (rowH) {
+      const corner = rowH.cells[0];
+      if (corner) corner.classList.add('aix-sticky-xy');
+      for (let c = 0; c < this.numCols; c++) {
+        const th = rowH.cells[c + 1];
+        if (!th) continue;
+        // Column header sticks to top. If c is in the frozen-col range, also stick X.
+        th.classList.add(c < frozenCols ? 'aix-sticky-xy' : 'aix-sticky-y');
+      }
+    }
+    if (tbody) {
+      for (let r = 0; r < this.numRows; r++) {
+        const tr = tbody.rows[r];
+        if (!tr) continue;
+        const rhCell = tr.cells[0];
+        if (rhCell) {
+          // Row header sticks to left. If r is in frozen-row range, also stick Y.
+          rhCell.classList.add(r < frozenRows ? 'aix-sticky-xy' : 'aix-sticky-x');
+        }
+        for (let c = 0; c < this.numCols; c++) {
+          const td = this._getCell(r, c);
+          if (!td) continue;
+          const fy = r < frozenRows;
+          const fx = c < frozenCols;
+          if (fx && fy) td.classList.add('aix-sticky-xy');
+          else if (fx) td.classList.add('aix-sticky-x');
+          else if (fy) td.classList.add('aix-sticky-y');
+        }
+      }
+    }
+
+    this._attachFrozenScrollListener();
+    this._updateFrozenTransforms();
+  }
+
+  _attachFrozenScrollListener() {
+    if (this._frozenScrollAttached) return;
+    const sc = this.sheetContainer;
+    if (!sc) return;
+    this._onFrozenScroll = () => this._updateFrozenTransforms();
+    sc.addEventListener('scroll', this._onFrozenScroll, { passive: true });
+    this._frozenScrollAttached = true;
+  }
+
+  _updateFrozenTransforms() {
+    if (!this.sheetContainer || !this.table) return;
+    const sx = this.sheetContainer.scrollLeft;
+    const sy = this.sheetContainer.scrollTop;
+    const tx = `translateX(${sx}px)`;
+    const ty = `translateY(${sy}px)`;
+    const txy = `translate(${sx}px, ${sy}px)`;
+    this.table.querySelectorAll('.aix-sticky-x').forEach(el => { el.style.transform = tx; });
+    this.table.querySelectorAll('.aix-sticky-y').forEach(el => { el.style.transform = ty; });
+    this.table.querySelectorAll('.aix-sticky-xy').forEach(el => { el.style.transform = txy; });
   }
 
   _applyMerges() {
