@@ -112,11 +112,37 @@ sheet.style("A1:D1", {
   align: "center",           // "left" | "center" | "right" ONLY
   fontSize: 14,              // px
   fontFamily: "Arial",
-  border: true               // see Borders below
+  border: true,              // see Borders below
+  numFmt: "yyyy/m/d"         // display format (see numFmt below)
 })
 ```
 
 Styles are **merged** with existing styles (not replaced).
+
+### numFmt (display format)
+
+Excel-style number-format codes. Applied via `style({ numFmt: '...' })`.
+Affects **display** only — the underlying cell value stays as-is.
+
+```js
+// Dates (m/d are month/day, case-insensitive)
+sheet.style("A1", { numFmt: "yyyy/m/d" })       // 2026/7/1
+sheet.style("A1", { numFmt: "m/d" })            // 7/1
+sheet.style("A1", { numFmt: "yyyy-mm-dd" })     // 2026-07-01
+sheet.style("A1", { numFmt: "yyyy年m月d日" })   // 2026年7月1日
+
+// Numbers
+sheet.style("B1", { numFmt: "0" })              // 123
+sheet.style("B1", { numFmt: "0.00" })           // 123.46
+sheet.style("B1", { numFmt: "#,##0" })          // 1,234,567
+sheet.style("B1", { numFmt: "¥#,##0" })         // ¥1,500
+sheet.style("B1", { numFmt: "0.0%" })           // 12.3%
+```
+
+Writing a Date object auto-applies `numFmt: 'yyyy/m/d'` if none is set.
+Writing a date-looking string (`"2026-07-01"` or `"2026/7/1"`) is
+auto-coerced to an Excel serial when compared or exported to xlsx, so
+you rarely need to think about this — just write dates in either form.
 
 ### Borders
 
@@ -223,6 +249,26 @@ sheet.images                              // → ImageRecord[]
 - Excel-compatible output uses cell-anchored positioning (oneCellAnchor).
 - `xlsx` package and `jszip` must be installed for `toXLSX()` with images.
 
+### Autofill (Excel-style drag-fill)
+
+Copy a source cell/range to a target range. Formulas have their relative
+refs shifted; absolute refs (`$A$1`, `$A1`, `A$1`) stay locked. When the
+source is a contiguous 1D range of numbers or Dates, an arithmetic series
+is detected and extrapolated (matches Excel's fill-handle behavior).
+
+```js
+sheet.fill("A1", "A2:A10")          // copy A1 down (formula shifts refs; Date +1 day)
+sheet.fill("B1:B2", "B3:B20")       // 1, 2  →  3, 4, 5, 6, ...
+sheet.fill("C1:C2", "C3:C20")       // 10, 20  →  30, 40, 50, ...
+sheet.fill("D1:D2", "D3:D10")       // 2026-07-01, 2026-07-08  →  weekly dates
+```
+
+**Side effect on CF:** if the fill's source range overlaps any existing
+CF rule, that rule's `range` is automatically extended in the fill direction
+so newly-filled rows/columns get the same conditional formatting. Handy for
+Gantt-style sheets: fill a template row down and all its per-cell CF bars
+extend to the new rows.
+
 ### Structure changes
 
 ```js
@@ -303,15 +349,37 @@ sheet.write("A1", "Title")
 
 ## Supported Formulas
 
-The built-in evaluator (used by `.value()` and `.toMarkdown()`) supports:
+The built-in evaluator (used by `.value()`, `.toMarkdown()`, and CF rules)
+supports:
 
 - **Aggregates**: `SUM`, `AVERAGE`, `MAX`, `MIN`, `COUNT`, `COUNTA`
-- **Logic**: `IF(cond, true, false)`
+- **Logic**: `IF(cond, a, b)`, `AND(...)`, `OR(...)`, `NOT(x)`
+- **Date**: `DATE(y, m, d)`, `TODAY()`, `NOW()`, `WEEKDAY(date [, type])`
+  - Date-shaped strings (`"2026-07-01"` / `"2026/7/1"`) auto-coerce to serials
 - **Math operators**: `+`, `-`, `*`, `/`, `%`, `()`, `**`
-- **Cell references**: `A1`, ranges `A1:B5`
+- **Comparisons** (Excel syntax): `=`, `<>`, `>`, `<`, `>=`, `<=`
+- **Cell references**: `A1`, ranges `A1:B5`, absolute `$A$1` / `$A1` / `A$1`,
+  cross-sheet `Sheet1!A1` / `'Sheet Name'!A1`
+- **Helpers**: `ROW()` / `COLUMN()` — 1-based row/col of the evaluated cell
+  (essential for CF rules that need per-row logic)
 
 For XLSX export, **any Excel formula string is preserved** — Excel itself
-will evaluate it on open. Only the in-memory evaluator above is limited.
+will evaluate it on open. So `VLOOKUP`, `INDEX/MATCH`, `SUMIFS`, etc. work
+in the final xlsx even though the in-viewer preview shows `#ERR!` or `''`.
+Prefer the supported functions above for anything that needs to render
+correctly in the viewer (data tables, CF bars, etc.).
+
+### CF formula gotchas
+
+- **Return a boolean.** CF rules trigger when the formula is TRUE/FALSE.
+  Strings ("▬", "OK", etc.) are treated as false by the SDK. If you want
+  emoji/text bars, put them in a regular cell via `write('G3', '=IF(...,"▬","")')`,
+  and use CF only for color/font/bg-color highlights.
+- **Use `=` for equality.** `sheet.cf(range, {formula: '=$C3="完了"', ...})` —
+  Excel's `=` (single equals) is understood as `==` by the evaluator.
+- **Absolute vs relative refs matter.** In CF, `$D3` (column locked, row
+  relative) is the usual pattern. When the rule is applied to a range like
+  `G3:Z11`, `$D3` evaluates as `$D3` at G3, `$D4` at G4, etc.
 
 ---
 

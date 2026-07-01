@@ -1240,8 +1240,32 @@ class Sheet {
     const DATE  = (y, m, d) => dateToSerial(new Date(Number(y), Number(m) - 1, Number(d)));
     const TODAY = () => { const n = new Date(); return dateToSerial(new Date(n.getFullYear(), n.getMonth(), n.getDate())); };
     const NOW   = TODAY;
-    return Function('DATE', 'TODAY', 'NOW',
-      '"use strict";return(' + _xlOpsToJs(resolved) + ')')(DATE, TODAY, NOW);
+    const UPPER = (s) => String(s ?? '').toUpperCase();
+    const LOWER = (s) => String(s ?? '').toLowerCase();
+    const TRIM  = (s) => String(s ?? '').replace(/^\s+|\s+$/g, '').replace(/\s+/g, ' ');
+    const LEN   = (s) => String(s ?? '').length;
+    const LEFT  = (s, n) => String(s ?? '').slice(0, Number(n) || 0);
+    const RIGHT = (s, n) => { const str = String(s ?? ''); const k = Number(n) || 0; return k <= 0 ? '' : str.slice(-k); };
+    const MID   = (s, start, len) => String(s ?? '').substr((Number(start) || 1) - 1, Number(len) || 0);
+    const CONCAT = (...args) => args.map(v => String(v ?? '')).join('');
+    const CONCATENATE = CONCAT;
+    const ROUND = (n, d = 0) => { const p = Math.pow(10, Number(d) || 0); return Math.round(Number(n) * p) / p; };
+    const FLOOR = (n, sig = 1) => { const s = Number(sig) || 1; return Math.floor(Number(n) / s) * s; };
+    const CEILING = (n, sig = 1) => { const s = Number(sig) || 1; return Math.ceil(Number(n) / s) * s; };
+    const ABS = (n) => Math.abs(Number(n));
+    const SQRT = (n) => Math.sqrt(Number(n));
+    const MOD = (a, b) => Number(a) - Math.floor(Number(a) / Number(b)) * Number(b);
+    const POWER = (a, b) => Math.pow(Number(a), Number(b));
+    return Function(
+      'DATE', 'TODAY', 'NOW',
+      'UPPER', 'LOWER', 'TRIM', 'LEN', 'LEFT', 'RIGHT', 'MID', 'CONCAT', 'CONCATENATE',
+      'ROUND', 'FLOOR', 'CEILING', 'ABS', 'SQRT', 'MOD', 'POWER',
+      '"use strict";return(' + _xlOpsToJs(resolved) + ')'
+    )(
+      DATE, TODAY, NOW,
+      UPPER, LOWER, TRIM, LEN, LEFT, RIGHT, MID, CONCAT, CONCATENATE,
+      ROUND, FLOOR, CEILING, ABS, SQRT, MOD, POWER
+    );
   }
 
   _collectArgs(s, visited) {
